@@ -1,0 +1,57 @@
+kind: ZarfPackageConfig
+metadata:
+  name: distro-k0s
+  description: Deploy a K0S K8s cluster
+  version: 0.0.1
+
+variables:
+  - name: K0S_CLUSTER_NAME
+    description: The name for the K0S cluster
+    default: k0s
+
+components:
+  - name: load-k0s
+    required: true
+    files:
+      - source: https://github.com/k0sproject/k0s/releases/download/v1.32.1%2Bk0s.0/k0s-v1.32.1+k0s.0-amd64
+        target: binaries/k0s_Linux_amd64
+        executable: true
+        shasum: 339df44a0919a13a61c4e84657b4eb2494154681e6c91803cbd43aba3b79bd73
+      - source: https://github.com/k0sproject/k0s/releases/download/v1.32.1%2Bk0s.0/k0s-v1.32.1+k0s.0-arm64
+        target: binaries/k0s_Linux_arm64
+        executable: true
+        shasum: 4c6bd53e454ced3a4b0d1aeb7fd5232e5a9e4fe42cbe12d1dbd26cdd5f09b2e8
+      - source: setup.sh
+        target: setup.sh
+        executable: true
+        shasum: 060c372cec33a5cf461b2dea3b6e15b319723629476e957149006e944cca9e3f
+
+  - name: deploy-k0s-cluster
+    description: Create an K0S cluster!
+    actions:
+      onDeploy:
+        before:
+          - cmd: mkdir -p ~/.k0s
+        after:
+          # Uncomment to install k0s as a service
+          # - cmd: sh -c "sudo ./binaries/k0s_$(uname -s)_$(uname -m | sed s/x86_64/amd64/) install controller --single"
+          # - cmd: sh -c "sudo ./binaries/k0s_$(uname -s)_$(uname -m | sed s/x86_64/amd64/) start"
+          - cmd: ./setup.sh
+            maxTotalSeconds: 0
+            maxRetries: 0
+            mute: true
+        onSuccess:
+          - cmd: ./binaries/k0s_$(uname -s)_$(uname -m | sed s/x86_64/amd64/) kubconfig admin --data-dir ~/.k0s > k0s.kubeconfig
+
+  - name: teardown-k0s-cluster
+    description: Delete the K0S cluster that this package was used to create.
+    actions:
+      onDeploy:
+        # before:
+          # Uncommment to remove the k0s service
+          # - cmd: sh =c "sudo ./binaries/k0s_$(uname -s)_$(uname -m) stop"
+          # - cmd: sh =c "sudo ./binaries/k0s_$(uname -s)_$(uname -m) reset"
+        onSuccess:
+          # clean up after ourselves
+          - cmd: rm -rf binaries
+          - cmd: rm -f k0s.yaml

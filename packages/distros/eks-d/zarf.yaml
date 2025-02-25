@@ -1,0 +1,57 @@
+kind: ZarfPackageConfig
+metadata:
+  name: distro-eksd
+  description: Deploy a EKS-D K8s cluster
+  version: 0.0.1
+
+variables:
+  - name: EKSD_CLUSTER_NAME
+    description: The name for the EKSD cluster
+    default: eksd
+
+components:
+  - name: load-eksctl
+    required: true
+    files:
+      - source: https://anywhere-assets.eks.amazonaws.com/releases/eks-a/90/artifacts/eks-a/v0.21.6/linux/amd64/eksctl-anywhere-v0.21.6-linux-amd64.tar.gz
+        target: ./binaries/eksctl-anywhere-v0.21.6-linux-amd64.tar.gz
+        executable: false
+        shasum: a1a6502e8136b8cb38194ebca8571b3817b200a3b1ac521bbb620376b18f2cc3 
+      - source: https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_Darwin_amd64.tar.gz
+        target: ./binaries/eksctl_Darwin_amd64.tar.gz
+        executable: false
+        shasum: 8c2cb6537e6527d68c35d46e5ff7d303f35a2d7e33a35b3f67be608f166091b1
+      - source: https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz
+        target: ./binaries/eksctl_Linux_amd64.tar.gz
+        executable: false
+        shasum: 2ae2d581115d3658e38c104a851a85d1972b8f535e011a3aa5af6eb96d4e142f
+      - source: https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_Darwin_arm64.tar.gz
+        target: ./binaries/eksctl_Darwin_arm64.tar.gz
+        executable: true
+        shasum: 1ceeae7650ad867f6a1db238fdaa82192f376008ef405f8c824761f0e8418ec8
+
+  - name: deploy-eksd-cluster
+    description: Create an EKSD cluster!
+    actions:
+      onDeploy:
+        before:
+          - cmd: tar -xvf ./binaries/eksctl_$(uname -s)_$(uname -m | sed s/x86_64/amd64/).tar.gz
+          - cmd: mkdir -p ~/.local/bin; tar -C ~/.local/bin -xvf ./binaries/eksctl-anywhere-v0.21.6-linux-amd64.tar.gz
+          - cmd: PATH=~/.local/bin:${PATH} ./eksctl anywhere generate clusterconfig ${ZARF_VAR_EKSD_CLUSTER_NAME} -p docker > eksd.yaml
+          - cmd: sed -i 's/192.168.0.0\/16/10.0.64.0\/18/' eksd.yaml
+          - cmd: sed -i 's/10.96.0.0\/12/10.0.128.0\/24/' eksd.yaml
+          - cmd: PATH=~/.local/bin:${PATH} ./eksctl anywhere create cluster -f eksd.yaml
+        onFailure:
+          - cmd: PATH=~/.local/bin:${PATH} KUBECONFIG=$(pwd)/${ZARF_VAR_EKSD_CLUSTER_NAME}/generated/${ZARF_VAR_EKSD_CLUSTER_NAME}.kind.kubeconfig ./zarf tools kubectl delete -f ${ZARF_VAR_EKSD_CLUSTER_NAME}.yaml
+          - cmd: docker stop ${ZARF_VAR_EKSD_CLUSTER_NAME}-eks-a-cluster-control-plane
+          - cmd: docker rm ${ZARF_VAR_EKSD_CLUSTER_NAME}-eks-a-cluster-control-plane
+
+      
+
+  - name: teardown-k0s-cluster
+    description: Delete the K0S cluster that this package was used to create.
+    actions:
+      onDeploy:
+        before:
+          # eksd/eksd-eks-a-cluster.kubeconfig
+          - cmd: PATH=~/.local/bin:${PATH} ./eksctl anywhere delete cluster -f ${ZARF_VAR_EKSD_CLUSTER_NAME}.yaml

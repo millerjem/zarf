@@ -1,0 +1,45 @@
+kind: ZarfPackageConfig
+metadata:
+  name: distro-k0s
+  description: Deploy a K0S K8s cluster
+  version: 0.0.1
+
+variables:
+  - name: K0S_CLUSTER_NAME
+    description: The name for the K0S cluster
+    default: k0s
+
+components:
+  - name: deploy-k0s-cluster
+    description: Create an K0S cluster!
+    files:
+      - source: https://github.com/k0sproject/k0s/releases/download/v1.32.1%2Bk0s.0/k0s-airgap-bundle-v1.32.1+k0s.0-amd64
+        target: ~/.k0s/images/k0s-airgap-bundle-amd64
+        shasum: 3aafe4e9ce82dd4d892d76e8918ae1bd06039a4830094cca9ddfd2975063bd40
+
+      - source: https://github.com/k0sproject/k0s/releases/download/v1.32.1%2Bk0s.0/k0s-airgap-bundle-v1.32.1+k0s.0-arm64
+        target: ~/.k0s/images/k0s-airgap-bundle-arm64
+        shasum: 2a199a25bf023e35475abca503af420d6987f9f67b1f039f2405e73268ecf535
+#   images:
+#     - docker.io/k0sproject/k0s:v1.32.1-k0s.0
+    actions:
+      onDeploy:
+        before:
+          - cmd: mkdir -p ~/.k0s
+        after:
+          - cmd: sh -c "docker run -d --name ${ZARF_VAR_K0S_CLUSTER_NAME} --hostname ${ZARF_VAR_K0S_CLUSTER_NAME} --privileged --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw -v /var/lib/k0s --tmpfs /run --tmpfs /tmp -p 6443:6443 docker.io/k0sproject/k0s:v1.32.1-k0s.0 k0s controller --single --disable-components=metrics-server"
+        onSuccess:
+          - cmd: sleep 10
+          - cmd: sh -c "docker exec k0s k0s kubeconfig admin > k0s.kubeconfig"
+            
+
+  - name: teardown-k0s-cluster
+    description: Delete the K0S cluster that this package was used to create.
+    actions:
+      onDeploy:
+        before:
+          - cmd: docker stop ${ZARF_VAR_K0S_CLUSTER_NAME}
+          - cmd: docker rm ${ZARF_VAR_K0S_CLUSTER_NAME}
+        after:
+          # clean up after ourselves
+          - cmd: rm -rf ~/.k0s
