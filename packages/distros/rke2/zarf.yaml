@@ -55,10 +55,47 @@ components:
     actions:
       onDeploy:
         after:
+          - cmd: | 
+              cat <<EOF> /usr/lib/systemd/system/nm-cloud-setup.service 
+              [Unit]
+              Description=Generic RHEL Service
+              After=network.target
+
+              [Service]
+              Type=simple
+              User=root
+              Group=root
+              ExecStart=/path/to/your/service_executable
+              Restart=always
+
+              [Install]
+              WantedBy=multi-user.target
+              EOF
+          - cmd: | 
+              cat <<EOF> /usr/lib/systemd/system/nm-cloud-setup.timer
+              [Unit]
+              Description=Generic RHEL Service
+              After=network.target
+
+              [Service]
+              Type=simple
+              User=root
+              Group=root
+              ExecStart=/path/to/your/service_executable
+              Restart=always
+
+              [Install]
+              WantedBy=multi-user.target
+              EOF
+          - cmd: systemctl daemon-reload
+          - cmd: systemctl disable nm-cloud-setup.service
+          - cmd: systemctl disable nm-cloud-setup.timer
+          - cmd: systemctl enable rke2-server.service
           - cmd: INSTALL_RKE2_ARTIFACT_PATH=$(pwd)/rke2-artifacts sh install.sh
           - cmd: systemctl enable rke2-server.service
+          - cmd: mkdir -p /etc/rancher/rke2
           - cmd: |
-              cat <<EOF> /etc/rancher/rke2/registries.yaml
+              cat <<EOF> /etc/rancher/rke2/registries.sample
               mirrors:
                 "*"
                   endpoint:
