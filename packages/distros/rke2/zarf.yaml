@@ -14,6 +14,9 @@ variables:
   - name: RKE2_TOKEN
     description: RKE2 server token
     prompt: true
+  - name: RKE2_RGISTRY
+    description: RKE2 registry and port ex; 192.168.0.1:5000
+    prompt: true
 
 components:
   - name: rke2-images
@@ -55,6 +58,27 @@ components:
     actions:
       onDeploy:
         after:
+          # Applying firewall port rules see https://ranchermanager.docs.rancher.com/how-to-guides/advanced-user-guides/open-ports-with-firewalld#applying-firewall-port-rules
+          - cmd: firewall-cmd --permanent --add-port=22/tcp
+          # For etcd nodes, run the following commands:
+          - cmd: firewall-cmd --permanent --add-port=2376/tcp
+          - cmd: firewall-cmd --permanent --add-port=2379/tcp
+          - cmd: firewall-cmd --permanent --add-port=2380/tcp
+          - cmd: firewall-cmd --permanent --add-port=8472/udp
+          - cmd: firewall-cmd --permanent --add-port=9099/tcp
+          - cmd: firewall-cmd --permanent --add-port=10250/tcp
+          # For control plane nodes, run the following commands:
+          - cmd: firewall-cmd --permanent --add-port=80/tcp
+          - cmd: firewall-cmd --permanent --add-port=443/tcp
+          - cmd: firewall-cmd --permanent --add-port=2376/tcp
+          - cmd: firewall-cmd --permanent --add-port=6443/tcp
+          - cmd: firewall-cmd --permanent --add-port=8472/udp
+          - cmd: firewall-cmd --permanent --add-port=9099/tcp
+          - cmd: firewall-cmd --permanent --add-port=10250/tcp
+          - cmd: firewall-cmd --permanent --add-port=10254/tcp
+          - cmd: firewall-cmd --permanent --add-port=30000-32767/tcp
+          - cmd: firewall-cmd --permanent --add-port=30000-32767/udp
+          - cmd: firewall-cmd --reload
           - cmd: | 
               cat <<EOF> /usr/lib/systemd/system/nm-cloud-setup.service 
               [Unit]
@@ -90,21 +114,28 @@ components:
           - cmd: systemctl daemon-reload
           - cmd: systemctl disable nm-cloud-setup.service
           - cmd: systemctl disable nm-cloud-setup.timer
-          - cmd: systemctl enable rke2-server.service
           - cmd: INSTALL_RKE2_ARTIFACT_PATH=$(pwd)/rke2-artifacts sh install.sh
           - cmd: systemctl enable rke2-server.service
           - cmd: mkdir -p /etc/rancher/rke2
           - cmd: |
-              cat <<EOF> /etc/rancher/rke2/registries.sample
-              mirrors:
-                "*"
-                  endpoint:
-                    - "https://{$ZARF_VAR_RKE2_SERVER}:5000"
-              EOF
+              - cmd: |
+                  cat <<EOF> /etc/rancher/rke2/registries.yaml
+                  mirrors:
+                    "*"
+                      endpoint:
+                        - ${ZARF_VAR_RKE2_RGISTRY}
+                  # Uncomment to use https with self-signed certificate
+                  # configs:
+                  #  ${ZARF_VAR_RKE2_RGISTRY}:5000
+                  #    tls:
+                  #      insecure_skip_verify: true
+                  EOF              
           - cmd: systemctl start rke2-server
           - cmd: cp /etc/rancher/rke2/rke2.yaml rke2-kubeconfig.yaml
+          - cmd: echo To use ./zarf tools monitor set env using export KUBECONFIG=$(pwd)/rke2-kubeconfig.yaml
           - cmd: chmod a+r rke2-kubeconfig.yaml
           - cmd: echo Token to join node to cluster\n $(cat /var/lib/rancher/rke2/server/node-token)
+          - cmd: cat /var/lib/rancher/rke2/server/node-token > rke2-server.token
       onRemove:
         after:
           - cmd: /usr/local/bin/rke2-uninstall.sh
@@ -120,15 +151,74 @@ components:
     actions:
       onDeploy:
         after:
+          # For worker nodes, run the following commands:
+          - cmd: firewall-cmd --permanent --add-port=22/tcp
+          - cmd: firewall-cmd --permanent --add-port=80/tcp
+          - cmd: firewall-cmd --permanent --add-port=443/tcp
+          - cmd: firewall-cmd --permanent --add-port=2376/tcp
+          - cmd: firewall-cmd --permanent --add-port=8472/udp
+          - cmd: firewall-cmd --permanent --add-port=9099/tcp
+          - cmd: firewall-cmd --permanent --add-port=10250/tcp
+          - cmd: firewall-cmd --permanent --add-port=10254/tcp
+          - cmd: firewall-cmd --permanent --add-port=30000-32767/tcp
+          - cmd: firewall-cmd --permanent --add-port=30000-32767/udp
+          - cmd: firewall-cmd --reload
+          - cmd: | 
+              cat <<EOF> /usr/lib/systemd/system/nm-cloud-setup.service 
+              [Unit]
+              Description=Generic RHEL Service
+              After=network.target
+
+              [Service]
+              Type=simple
+              User=root
+              Group=root
+              ExecStart=/path/to/your/service_executable
+              Restart=always
+
+              [Install]
+              WantedBy=multi-user.target
+              EOF
+          - cmd: | 
+              cat <<EOF> /usr/lib/systemd/system/nm-cloud-setup.timer
+              [Unit]
+              Description=Generic RHEL Service
+              After=network.target
+
+              [Service]
+              Type=simple
+              User=root
+              Group=root
+              ExecStart=/path/to/your/service_executable
+              Restart=always
+
+              [Install]
+              WantedBy=multi-user.target
+              EOF
+          - cmd: systemctl daemon-reload
+          - cmd: systemctl disable nm-cloud-setup.service
+          - cmd: systemctl disable nm-cloud-setup.timer
           - cmd: INSTALL_RKE2_TYPE=agent INSTALL_RKE2_ARTIFACT_PATH=$(pwd)/rke2-artifacts sh install.sh
-          - cmd: systemctl enable rke2-agent.service
           - cmd: mkdir -p /etc/rancher/rke2
+          - cmd: |
+              cat <<EOF> /etc/rancher/rke2/registries.yaml
+              mirrors:
+                "*"
+                  endpoint:
+                    - ${ZARF_VAR_RKE2_RGISTRY}
+              # Uncomment to use https with self-signed certificate
+              # configs:
+              #  ${ZARF_VAR_RKE2_RGISTRY}
+              #    tls:
+              #      insecure_skip_verify: true
+              EOF
           - cmd: |
               cat <<EOF> /etc/rancher/rke2/config.yaml
               server: https://${ZARF_VAR_RKE2_SERVER}:9345
               # Paste the token located on the first RKE2 server /var/lib/rancher/rke2/server/node-token  
               token: ${ZARF_VAR_RKE2_TOKEN}
               EOF
+          - cmd: systemctl enable rke2-agent.service
           - cmd: systemctl start rke2-agent
       onRemove:
         after:
