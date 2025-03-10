@@ -59,6 +59,7 @@ components:
       onDeploy:
         after:
           # Applying firewall port rules see https://ranchermanager.docs.rancher.com/how-to-guides/advanced-user-guides/open-ports-with-firewalld#applying-firewall-port-rules
+          # https://docs.rke2.io/install/requirements
           - cmd: firewall-cmd --permanent --add-port=22/tcp
           # For etcd nodes, run the following commands:
           - cmd: firewall-cmd --permanent --add-port=2376/tcp
@@ -67,17 +68,23 @@ components:
           - cmd: firewall-cmd --permanent --add-port=8472/udp
           - cmd: firewall-cmd --permanent --add-port=9099/tcp
           - cmd: firewall-cmd --permanent --add-port=10250/tcp
+          - cmd: firewall-cmd --permanent --add-port=30000-32767/tcp
+          - cmd: firewall-cmd --permanent --add-port=30000-32767/udp      
           # For control plane nodes, run the following commands:
           - cmd: firewall-cmd --permanent --add-port=80/tcp
           - cmd: firewall-cmd --permanent --add-port=443/tcp
           - cmd: firewall-cmd --permanent --add-port=2376/tcp
           - cmd: firewall-cmd --permanent --add-port=6443/tcp
+          - cmd: firewall-cmd --permanent --add-port=8443/tcp
           - cmd: firewall-cmd --permanent --add-port=8472/udp
           - cmd: firewall-cmd --permanent --add-port=9099/tcp
+          - cmd: firewall-cmd --permanent --add-port=9345/udp
           - cmd: firewall-cmd --permanent --add-port=10250/tcp
           - cmd: firewall-cmd --permanent --add-port=10254/tcp
           - cmd: firewall-cmd --permanent --add-port=30000-32767/tcp
           - cmd: firewall-cmd --permanent --add-port=30000-32767/udp
+          - cmd: firewall-cmd --permanent --add-port=51820/udp
+          - cmd: firewall-cmd --permanent --add-port=51821/udp
           - cmd: firewall-cmd --reload
           - cmd: | 
               cat <<EOF> /usr/lib/systemd/system/nm-cloud-setup.service 
@@ -156,12 +163,15 @@ components:
           - cmd: firewall-cmd --permanent --add-port=80/tcp
           - cmd: firewall-cmd --permanent --add-port=443/tcp
           - cmd: firewall-cmd --permanent --add-port=2376/tcp
+          - cmd: firewall-cmd --permanent --add-port=8443/tcp
           - cmd: firewall-cmd --permanent --add-port=8472/udp
           - cmd: firewall-cmd --permanent --add-port=9099/tcp
           - cmd: firewall-cmd --permanent --add-port=10250/tcp
           - cmd: firewall-cmd --permanent --add-port=10254/tcp
           - cmd: firewall-cmd --permanent --add-port=30000-32767/tcp
           - cmd: firewall-cmd --permanent --add-port=30000-32767/udp
+          - cmd: firewall-cmd --permanent --add-port=51820/udp
+          - cmd: firewall-cmd --permanent --add-port=51821/udp
           - cmd: firewall-cmd --reload
           - cmd: | 
               cat <<EOF> /usr/lib/systemd/system/nm-cloud-setup.service 
